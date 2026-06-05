@@ -1,80 +1,111 @@
-# Software Testing and Maintenance Final Project
+# 软件测试与维护大作业：Online-Boutique 运维实验与 KPIRoot 复现
 
-This repository contains the course final project for reproducing monitoring,
-testing, fault-injection, and KPI-root-cause-localization experiments on
-JoinFyc/Online-Boutique.
+本仓库是“软件测试与维护”课程期末大作业的项目仓库，围绕
+`JoinFyc/Online-Boutique` 开源微服务系统完成部署、监控、故障注入、黑盒测试与论文算法复现。
 
-## Project Scope
-
-- Microservice system: JoinFyc/Online-Boutique
-- Local cluster: Minikube
-- Monitoring: Prometheus, Grafana, Blackbox Exporter
-- Fault injection: ChaosMesh
-- Black-box testing: Selenium and JMeter
-- Paper reproduction: ISSRE24-KPIRoot
-
-The downloaded papers and course requirement PDFs are intentionally excluded
-from version control. The upstream Online-Boutique source is also excluded and
-should be cloned from its original repository when needed.
-
-## Directory Layout
+需要说明的是：本课程大作业以小组形式完成，基本要求是复现两篇异常检测/故障诊断相关论文。本仓库记录的是本人负责的部分，复现论文为：
 
 ```text
-chaos/       ChaosMesh manifests used in Phase 2
-data/        Collected experiment data and generated results
-docs/        Phase-by-phase execution notes
-grafana/     Grafana dashboard JSON
-monitoring/  Monitoring manifests
-scripts/     Deployment, monitoring, test, and reproduction runners
-src/         Python implementation of KPIRoot reproduction
-tests/       Selenium, JMeter, and KPIRoot tests
+ISSRE 2024 - KPIRoot: Efficient Monitoring Metric-based Root Cause Localization in Large-scale Cloud Systems
 ```
 
-## Phase 4 KPIRoot Reproduction
+另一篇论文的复现与智能体封装工作由组内其他成员负责，不包含在本仓库中。
 
-The reproduction code is under `src/kpiroot/`. It implements:
+## 项目内容
 
-1. KPI matrix loading and cleaning.
-2. Synthetic alarm KPI construction.
-3. PAA and SAX representation.
-4. Fault-window segment selection.
-5. SAX-Jaccard similarity scoring.
-6. Granger-style causality scoring.
-7. KPIRoot combined ranking and ablation comparison.
+本仓库完成的内容包括：
 
-Run:
+- 阶段一：部署 Online-Boutique 微服务系统。
+- 阶段二：使用 Prometheus、Grafana、Blackbox Exporter 与 ChaosMesh 完成监控、故障注入和数据采集。
+- 阶段三：使用 Selenium 和 JMeter 完成前端功能测试与性能测试。
+- 阶段四：基于阶段二采集的故障数据，复现 ISSRE24-KPIRoot 的核心根因定位算法。
+
+## 目录结构
+
+```text
+chaos/       ChaosMesh 故障注入配置
+data/        实验采集数据、测试数据与 KPIRoot 输出结果
+docs/        各阶段执行记录与说明文档
+grafana/     Grafana Dashboard 配置
+monitoring/  Blackbox Exporter 等监控配置
+scripts/     部署、恢复、数据导出、测试与算法运行脚本
+src/         KPIRoot 复现源码
+tests/       Selenium、JMeter 与 KPIRoot 测试文件
+```
+
+## 阶段四：ISSRE24-KPIRoot 复现
+
+KPIRoot 的任务是：当系统级 KPI 出现异常后，根据多个候选服务 KPI 的变化趋势，定位最可能导致异常的根因 KPI。
+
+本仓库将原论文的 Cloud H 主机集群/VM 场景适配到 Online-Boutique 微服务场景：
+
+| 原论文概念 | 本项目映射 |
+| --- | --- |
+| Host/cluster alarm KPI | 聚合 CPU、聚合内存、前端探针延迟等系统级 KPI |
+| VM KPI | 各微服务的 CPU、内存、文件系统、运行状态等 KPI |
+| Root-cause VM | 被 ChaosMesh 注入故障的目标服务 |
+
+已实现的核心步骤：
+
+1. 读取阶段二导出的 `kpi_matrix.csv`。
+2. 构造系统级告警 KPI，例如 `synthetic_total_cpu`、`synthetic_total_memory`。
+3. 对 KPI 进行标准化与 PAA 降维。
+4. 将 PAA 序列转换为 SAX 符号序列。
+5. 根据故障注入元数据选择异常窗口。
+6. 计算 SAX-Jaccard 相似度。
+7. 计算 Granger 风格的因果得分。
+8. 使用 `0.9 * similarity + 0.1 * causality` 生成 KPIRoot 综合得分。
+9. 输出根因 KPI 排名，并进行消融对比。
+
+## 阶段四结果
+
+主要结果保存在：
+
+```text
+data/phase4/kpiroot/summary.csv
+data/phase4/kpiroot/ablation_summary.csv
+docs/PHASE4_KPIROOT.md
+```
+
+三组故障数据上的结果如下：
+
+| 故障场景 | 告警 KPI | Top-1 KPI | 真实根因服务排名 |
+| --- | --- | --- | ---: |
+| `stress-paymentservice-cpu-001` | `synthetic_total_cpu` | `cpu__paymentservice` | 1 |
+| `stress-frontend-cpu-001` | `synthetic_total_cpu` | `cpu__frontend` | 1 |
+| `pod-kill-paymentservice-001` | `synthetic_total_memory` | `memory__paymentservice` | 1 |
+
+消融实验显示：在本项目较短的课程实验时序数据上，`causality_only` 排名不稳定；`similarity_only` 与 `kpiroot_combined` 均能将真实根因服务排在第一。报告中应重点展示两组 CPU Stress 场景，Pod Kill 可作为补充或边界案例。
+
+## 运行方式
+
+运行阶段四 KPIRoot 复现：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-phase4-kpiroot.ps1
 ```
 
-Outputs:
-
-```text
-data/phase4/kpiroot/summary.csv
-data/phase4/kpiroot/ablation_summary.csv
-data/phase4/kpiroot/<scenario>/ranking.csv
-data/phase4/kpiroot/<scenario>/topk_scores.png
-data/phase4/kpiroot/<scenario>/alarm_top_candidates.png
-docs/PHASE4_KPIROOT.md
-```
-
-## Verification
-
-Run the KPIRoot unit tests:
+运行 KPIRoot 单元测试：
 
 ```powershell
 .\.conda\python.exe -m pytest .\tests\kpiroot -v -o "cache_dir=.pytest_cache"
 ```
 
-The full Selenium suite requires the Online-Boutique frontend to be available
-at `http://127.0.0.1:8088`.
+若要重新打开 Online-Boutique 前端，可参考：
 
-## Notes
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\resume-online-boutique.ps1
+```
 
-- The Phase 4 reproduction adapts KPIRoot from Cloud H host/VM KPIs to
-  Online-Boutique service-level KPIs.
-- The CPU stress scenarios are the strongest evidence for KPIRoot because the
-  aggregate CPU alarm naturally maps to service CPU root causes.
-- The Pod Kill scenario is retained as a boundary case because processed
-  service-level data hides some Pod identity changes.
+## 文档索引
+
+- [阶段一部署记录](docs/PHASE1_DEPLOYMENT.md)
+- [阶段二监控与数据采集说明](docs/PHASE2_MONITORING_AND_DATA_COLLECTION.md)
+- [阶段二执行记录](docs/PHASE2_EXECUTION_LOG.md)
+- [阶段三测试计划](docs/PHASE3_TESTING_PLAN.md)
+- [阶段三执行记录](docs/PHASE3_EXECUTION_LOG.md)
+- [阶段四 KPIRoot 复现说明](docs/PHASE4_KPIROOT.md)
+
+## 备注
+
+本仓库中的脚本、配置、实验数据和结果图表可用于课程报告与答辩展示。最终小组报告中还需要合并另一篇论文的复现结果，以及组内其他成员负责的智能体封装部分。

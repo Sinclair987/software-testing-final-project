@@ -9,14 +9,14 @@ __pycache__/
 htmlcov/
 results/
 
-# Local course materials and downloaded papers are not project source.
+# 本地课程资料和已下载论文不作为项目源码提交。
 Readme/
 
-# External upstream application clone. The report references the upstream repo.
+# Online-Boutique 上游项目保留为本地部署副本。
 Online-Boutique/
 
-# Bulky generated HTML assets; keep JMeter CSV/JTL summaries and screenshots.
+# JMeter HTML 报告体积较大，仓库保留 CSV/JTL 摘要与截图。
 data/phase3/jmeter/*/html-report/
 
-# Temporary screenshot inbox used during manual experiments.
+# 手动实验时临时存放截图的入口目录。
 screenshot/
