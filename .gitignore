@@ -1,0 +1,22 @@
+.conda/
+.venv/
+.cache/
+.logs/
+__pycache__/
+.pytest_cache/
+*.pyc
+.coverage
+htmlcov/
+results/
+
+# Local course materials and downloaded papers are not project source.
+Readme/
+
+# External upstream application clone. The report references the upstream repo.
+Online-Boutique/
+
+# Bulky generated HTML assets; keep JMeter CSV/JTL summaries and screenshots.
+data/phase3/jmeter/*/html-report/
+
+# Temporary screenshot inbox used during manual experiments.
+screenshot/
