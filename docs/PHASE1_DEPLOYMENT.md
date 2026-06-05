@@ -1,15 +1,22 @@
-# Phase 1 Deployment Notes
+# 阶段一：Online-Boutique 部署记录
 
-## Target System
+## 基本信息
 
-- System: JoinFyc/Online-Boutique
-- Local path: `D:\Study\SoftwareTesting\FinalProject\Online-Boutique`
-- Kubernetes namespace: `online-boutique`
-- Manifest used: `FinalProject\Online-Boutique\release\kubernetes-manifests.yaml`
+本阶段完成 `JoinFyc/Online-Boutique` 微服务系统在本地 Minikube 集群中的部署，为后续监控、故障注入、黑盒测试和论文算法复现提供运行对象。
 
-The `kubernetes-manifests` directory is not used directly because its image names are placeholders for Skaffold. The `release` manifest contains pre-built public images.
+| 项目 | 内容 |
+| --- | --- |
+| 微服务系统 | `JoinFyc/Online-Boutique` |
+| 本地部署副本 | `Online-Boutique/` |
+| Kubernetes 集群 | Minikube |
+| 命名空间 | `online-boutique` |
+| 使用清单 | `Online-Boutique/release/kubernetes-manifests.yaml` |
 
-## Deployment Commands
+`kubernetes-manifests` 目录中的镜像名依赖 Skaffold 构建流程，课程实验中直接采用 `release/kubernetes-manifests.yaml` 中的公开预构建镜像。
+
+## 部署过程
+
+部署时使用的核心命令如下：
 
 ```powershell
 minikube start
@@ -18,80 +25,67 @@ kubectl apply -n online-boutique -f .\FinalProject\Online-Boutique\release\kuber
 kubectl wait --for=condition=available deployment --all -n online-boutique --timeout=300s
 ```
 
-## Verification
+部署完成后检查 Pod 和 Service：
 
 ```powershell
 kubectl get pods -n online-boutique -o wide
 kubectl get svc -n online-boutique -o wide
 ```
 
-Expected result:
+检查结果显示，Online-Boutique 的 12 个业务 Pod 均进入 `1/1 Running` 状态，`frontend-external` 被暴露为 `LoadBalancer` 类型 Service。Windows 环境中直接访问 Minikube NodePort 不够稳定，因此最终采用本地端口转发访问前端。
 
-- 12 Pods are `1/1 Running`.
-- `frontend-external` is exposed as a `LoadBalancer` service with a Minikube NodePort.
-- On this machine, stable browser access is provided through local port forwarding.
+## 前端访问
 
-## Local Access
-
-Start port forwarding:
+本地前端访问通过以下命令建立：
 
 ```powershell
 kubectl port-forward -n online-boutique service/frontend 8088:80
 ```
 
-Open:
+访问地址：
 
 ```text
 http://127.0.0.1:8088
 ```
 
-Verified on 2026-06-04:
+2026-06-04 的验证结果：
 
-- `curl -I http://127.0.0.1:8088` returned `HTTP/1.1 200 OK`.
-- `curl -L http://127.0.0.1:8088` returned the Online Boutique homepage HTML.
+- `curl -I http://127.0.0.1:8088` 返回 `HTTP/1.1 200 OK`。
+- `curl -L http://127.0.0.1:8088` 能返回 Online Boutique 首页 HTML。
+- 浏览器可以正常打开商品首页。
 
-## Restart After Reboot
+## 恢复脚本
 
-After restarting Windows, Docker Desktop should be running first. Then run:
+为避免每次重启 Windows 后手动恢复集群状态，项目中保留了恢复脚本：
 
 ```powershell
 .\FinalProject\scripts\resume-online-boutique.ps1
 ```
 
-This starts Minikube if needed, removes old terminal Pods left by the previous
-Minikube session, restarts the Online Boutique deployments, waits for the
-frontend endpoint, and opens local access at:
+该脚本负责启动 Minikube、清理上一次 Minikube 会话遗留的终止态 Pod、重启 Online-Boutique Deployment、等待 frontend 端点恢复，并建立本地前端访问。
 
-```text
-http://127.0.0.1:8088
-```
-
-`kubectl port-forward` is a foreground command. Keep that terminal open while using the web frontend.
-
-Useful options:
+常用参数如下：
 
 ```powershell
-# Use a different local port if 8088 is occupied.
-.\FinalProject\scripts\resume-online-boutique.ps1 -LocalPort 8089
-
-# Validate cluster recovery without starting foreground port forwarding.
+# 仅恢复集群，不启动前台端口转发。
 .\FinalProject\scripts\resume-online-boutique.ps1 -NoPortForward
 
-# Skip deployment restart when the cluster is already known to be healthy.
+# 8088 被占用时使用其他本地端口。
+.\FinalProject\scripts\resume-online-boutique.ps1 -LocalPort 8089
+
+# 集群已确认健康时跳过 rollout restart。
 .\FinalProject\scripts\resume-online-boutique.ps1 -SkipRolloutRestart
 ```
 
-If Minikube is already running and the Pods are already healthy, the lightweight
-frontend-only command is:
+在 Minikube 已运行且 Pod 已健康的情况下，也可以只执行前端端口转发脚本：
 
 ```powershell
 .\FinalProject\scripts\port-forward-frontend.ps1
 ```
 
-## Manual Recovery Commands
+## 手动恢复命令记录
 
-If the scripts are not used, run the following commands from
-`D:\Study\SoftwareTesting` after Docker Desktop is running:
+脚本以外的手动恢复流程如下：
 
 ```powershell
 minikube start
@@ -105,17 +99,14 @@ kubectl get endpointslices -n online-boutique -l kubernetes.io/service-name=fron
 kubectl port-forward -n online-boutique service/frontend 8088:80
 ```
 
-If `kubectl get namespace online-boutique` reports that the namespace does not
-exist, deploy the system again:
+若 `online-boutique` 命名空间不存在，则重新部署：
 
 ```powershell
 .\FinalProject\scripts\deploy-online-boutique.ps1
 ```
 
-## Current Notes
+## 资源整理
 
-- Docker was already running.
-- Minikube existed but was stopped; it was started before deployment.
-- The old `sock-shop` namespace was deleted after deployment to free resources.
-- Existing `monitoring` and `chaos-testing` namespaces were kept because they are useful for later Prometheus/Grafana monitoring and ChaosMesh fault injection.
-- Direct access through `http://192.168.49.2:32493` was unreliable from Windows, so `kubectl port-forward` is the recommended local access method.
+部署后清理了前序实验中不再使用的 `sock-shop` 命名空间，以释放本地资源。`monitoring` 和 `chaos-testing` 命名空间被保留，因为阶段二继续复用其中的 Prometheus、Grafana 和 ChaosMesh 组件。
+
+阶段一完成后，Online-Boutique 前端、Pod 状态和 Service 暴露方式均已验证，可作为后续实验的稳定对象。

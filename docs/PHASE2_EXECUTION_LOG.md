@@ -1,379 +1,217 @@
-# Phase 2 Execution Log
+# 阶段二：执行记录
 
-Date: 2026-06-05
+执行日期：2026-06-05
 
-## Completed by Codex
+本阶段在阶段一部署的 Online-Boutique 基础上，完成 Prometheus/Grafana 监控接入、Blackbox 前端探针、ChaosMesh 故障注入和 Prometheus 数据导出。导出的 KPI 矩阵作为阶段四 KPIRoot 复现的主要输入。
 
-### Cluster Verification
+## 集群与监控状态
 
-Verified that the following namespaces are healthy:
+实验开始前检查了三个命名空间：
 
-- `online-boutique`
-- `monitoring`
-- `chaos-testing`
+| 命名空间 | 用途 | 状态 |
+| --- | --- | --- |
+| `online-boutique` | 被测微服务系统 | 12 个业务 Pod 正常运行 |
+| `monitoring` | Prometheus、Grafana、kube-state-metrics、node-exporter | 正常运行 |
+| `chaos-testing` | ChaosMesh 控制组件 | 正常运行 |
 
-Online-Boutique currently has 12 Pods running.
+Prometheus 已能采集 Online-Boutique 的容器与 Pod 指标，验证过的主要查询包括：
 
-Prometheus/Grafana are running in `monitoring`.
+```promql
+container_cpu_usage_seconds_total{namespace="online-boutique"}
+container_memory_working_set_bytes{namespace="online-boutique"}
+kube_pod_container_status_restarts_total{namespace="online-boutique"}
+kube_pod_status_phase{namespace="online-boutique"}
+```
 
-ChaosMesh is running in `chaos-testing`.
+## Frontend Blackbox Probe
 
-### Prometheus Metric Verification
+为获得更接近“系统级告警 KPI”的服务质量指标，阶段二增加了 Blackbox Exporter 对 Online-Boutique 前端的探测。
 
-Verified that Prometheus can query Online-Boutique metrics:
+新增文件：
 
-- `container_cpu_usage_seconds_total{namespace="online-boutique"}` returns 12 series.
-- `container_memory_working_set_bytes{namespace="online-boutique"}` returns 12 series.
-- `kube_pod_container_status_restarts_total{namespace="online-boutique"}` returns restart metrics for all service containers.
+- `monitoring/blackbox-exporter.yaml`
+- `scripts/enable-blackbox-frontend-probe.ps1`
 
-### Frontend Blackbox Probe
-
-Deployed `blackbox-exporter` in the `monitoring` namespace.
-
-Created files:
-
-- `FinalProject/monitoring/blackbox-exporter.yaml`
-- `FinalProject/scripts/enable-blackbox-frontend-probe.ps1`
-
-Patched Prometheus with a scrape job:
+Prometheus 中新增的 scrape job：
 
 ```text
 online-boutique-frontend-blackbox
 ```
 
-Verified:
+验证结果：
 
 ```text
 probe_success{job="online-boutique-frontend-blackbox"} = 1
 ```
 
-This gives KPIRoot a suitable frontend service-quality alarm KPI.
+该探针生成的 `probe_success` 和 `probe_duration_seconds` 后续被导出为 `alarm_frontend_probe_success` 与 `alarm_frontend_probe_duration`。
 
-### ChaosMesh Fault Definitions
+## Grafana Dashboard
 
-Created reusable ChaosMesh YAML files:
+阶段二创建了 Online-Boutique 专用 Dashboard：
 
-- `FinalProject/chaos/pod-kill-paymentservice.yaml`
-- `FinalProject/chaos/stress-paymentservice-cpu.yaml`
-- `FinalProject/chaos/stress-frontend-cpu.yaml`
-- `FinalProject/chaos/network-delay-checkoutservice.yaml`
+```text
+grafana/online-boutique-maintenance-dashboard.json
+```
 
-Validated all YAML files with:
+Dashboard 面板覆盖以下指标：
+
+- Pod CPU 使用率
+- Pod 内存工作集
+- 容器重启次数
+- Pod Running 状态
+- 前端探针耗时
+- 前端探针成功率
+- 文件系统读写速率
+
+实验中曾遇到 Grafana v7.5.5 对新版 `timeseries` panel 支持不兼容的问题，随后将面板类型调整为 legacy `graph`，并将 Prometheus 数据源改为集群内地址：
+
+```text
+http://prometheus.monitoring.svc.cluster.local:9090
+```
+
+重新导入后，Grafana 能正常通过数据源查询 Online-Boutique 的 12 条 CPU 序列。
+
+## ChaosMesh 故障定义
+
+阶段二准备了可复用的故障注入清单：
+
+- `chaos/stress-paymentservice-cpu.yaml`
+- `chaos/pod-kill-paymentservice.yaml`
+- `chaos/stress-frontend-cpu.yaml`
+- `chaos/network-delay-checkoutservice.yaml`
+
+清单通过如下命令进行客户端侧校验：
 
 ```powershell
 kubectl apply --dry-run=client -f .\FinalProject\chaos
 ```
 
-No ChaosMesh fault was actually injected yet.
+实际采集数据时使用了前三组故障。实验结束后均检查并清理了 `online-boutique` 命名空间中的 ChaosMesh 对象。
 
-Verified no active chaos objects remain:
+## 数据导出方式
 
-```text
-No resources found in online-boutique namespace.
-```
-
-### Grafana Dashboard Artifact
-
-Created:
+Prometheus 数据通过脚本导出：
 
 ```text
-FinalProject/grafana/online-boutique-maintenance-dashboard.json
+scripts/export-prometheus-range.py
 ```
 
-This dashboard includes panels for:
-
-- CPU by Pod
-- memory by Pod
-- container restarts
-- Pod running status
-- frontend probe duration
-- frontend probe success
-- filesystem reads
-- filesystem writes
-
-Attempted automatic import through Grafana API, but Grafana rejected the default lab2 credential:
+每组数据目录包含：
 
 ```text
-401 Unauthorized: invalid username or password
+metadata.yaml
+prometheus_raw/*.csv
+processed/kpi_matrix.csv
+processed/series_labels.json
+screenshots/
 ```
 
-Therefore, dashboard import requires the user's Grafana password.
+其中 `processed/kpi_matrix.csv` 是阶段四 KPIRoot 复现使用的宽表时序矩阵，`metadata.yaml` 记录故障类型、目标服务、时间窗口和真实根因。
 
-Update on 2026-06-05:
+## Baseline 数据
 
-- Rebuilt the dashboard JSON for Grafana `v7.5.5` compatibility.
-- Replaced newer `timeseries` panels with legacy `graph` panels.
-- Updated Grafana `Prometheus` datasource from stale `direct` URL
-  `http://127.0.0.1:8792` to cluster-internal proxy URL
-  `http://prometheus.monitoring.svc.cluster.local:9090`.
-- Re-imported the dashboard through Grafana API.
-- Verified Grafana datasource proxy query returned 12 Online-Boutique CPU
-  series.
-
-### Data Export Script and Baseline Data
-
-Created:
+正常状态样本保存在：
 
 ```text
-FinalProject/scripts/export-prometheus-range.py
+data/phase2/baseline-sample/
 ```
 
-Exported a normal baseline sample:
+该样本用于验证 Prometheus 查询、导出脚本和矩阵转换流程。处理后的矩阵规模为：
 
-```text
-FinalProject/data/phase2/baseline-sample/
-```
+| 数据集 | 行数 | 列数 |
+| --- | ---: | ---: |
+| `baseline-sample` | 14 | 60 |
 
-Important files:
+## 故障数据集
 
-- `metadata.yaml`
-- `prometheus_raw/*.csv`
-- `processed/kpi_matrix.csv`
-- `processed/series_labels.json`
+阶段二最终保留三组故障数据：
 
-The processed matrix currently has:
+| 数据集 | 故障类型 | 目标服务 | 导出窗口 | 矩阵规模 | 阶段四真实根因 |
+| --- | --- | --- | --- | --- | --- |
+| `stress-paymentservice-cpu-001` | CPU Stress | `paymentservice` | `2026-06-05T01:50:00+08:00` 至 `2026-06-05T02:18:30+08:00` | 115 行 × 62 列 | `cpu__paymentservice` |
+| `pod-kill-paymentservice-001` | Pod Kill | `paymentservice` | `2026-06-05T02:45:55+08:00` 至 `2026-06-05T03:02:30+08:00` | 67 行 × 62 列 | `memory__paymentservice` / `paymentservice` 服务 |
+| `stress-frontend-cpu-001` | CPU Stress | `frontend` | `2026-06-05T03:14:44+08:00` 至 `2026-06-05T03:31:30+08:00` | 68 行 × 60 列 | `cpu__frontend` |
 
-```text
-rows: 14
-columns: 60
-```
+### `stress-paymentservice-cpu-001`
 
-This is a small connectivity sample, not the final experiment dataset.
-
-## User Actions Still Required
-
-## First Fault Experiment Completed
-
-Experiment:
-
-```text
-stress-paymentservice-cpu-001
-```
-
-Evidence and data were organized under:
-
-```text
-FinalProject/data/phase2/stress-paymentservice-cpu-001/
-```
-
-The screenshots were moved from `FinalProject/screenshot` to:
-
-```text
-FinalProject/data/phase2/stress-paymentservice-cpu-001/screenshots/
-```
-
-Data was exported for:
-
-```text
-2026-06-05T01:50:00+08:00 -> 2026-06-05T02:18:30+08:00
-```
-
-Processed matrix:
-
-```text
-FinalProject/data/phase2/stress-paymentservice-cpu-001/processed/kpi_matrix.csv
-```
-
-Data check:
-
-- rows: 115
-- columns: 62
-- `cpu__paymentservice` baseline average: about `0.00064`
-- `cpu__paymentservice` fault-window average: about `0.16999`
-- `cpu__paymentservice` fault-window max: about `0.20016`
-- `alarm_frontend_probe_success` stayed at `1.0`
-
-Conclusion:
-
-```text
-The StressChaos experiment was successful. The injected CPU stress produced a
-clear paymentservice CPU anomaly and is suitable for the later KPIRoot
-reproduction.
-```
-
-### 1. Import or Open the Grafana Dashboard
-
-Run Grafana port-forward:
-
-```powershell
-cd D:\Study\SoftwareTesting
-kubectl port-forward -n monitoring service/grafana 3000:80
-```
-
-Open:
-
-```text
-http://127.0.0.1:3000
-```
-
-Log in with your actual Grafana password.
-
-Then import:
-
-```text
-FinalProject/grafana/online-boutique-maintenance-dashboard.json
-```
-
-Alternative: if you know the password, run:
-
-```powershell
-.\FinalProject\scripts\import-grafana-dashboard.ps1 -Password "<your-grafana-password>"
-```
-
-### 2. Take Required Screenshots
-
-Capture these for the report:
-
-- `kubectl get pods -n online-boutique`
-- `kubectl get all -n monitoring`
-- `kubectl get all -n chaos-testing`
-- Prometheus targets page
-- Prometheus query for Online-Boutique CPU or memory
-- Prometheus query for `probe_success`
-- Grafana dashboard during normal baseline
-
-### 3. Run Fault Experiments
-
-For each experiment:
-
-1. Record baseline start time.
-2. Observe Grafana for about 10 minutes.
-3. Apply one ChaosMesh YAML.
-4. Record fault start time.
-5. Observe Grafana during the 5-minute fault.
-6. Record fault end time.
-7. Observe recovery for about 10 minutes.
-8. Export Prometheus data for the full window.
-9. Save screenshots and fill metadata.
-
-Recommended first experiment:
+故障清单：
 
 ```powershell
 kubectl apply -f .\FinalProject\chaos\stress-paymentservice-cpu.yaml
 ```
 
-After it ends, confirm no active chaos object remains:
+关键时间：
 
-```powershell
-kubectl get podchaos,stresschaos,networkchaos -n online-boutique
-```
+- 故障应用时间：`2026-06-05T02:05:50.9359678+08:00`
+- ChaosMesh 记录的故障开始：`2026-06-05T02:06:14+08:00`
+- 故障确认时间：`2026-06-05T02:06:23.7236879+08:00`
+- 预计故障结束：`2026-06-05T02:11:14+08:00`
+- 恢复确认时间：`2026-06-05T02:18:12.2415593+08:00`
 
-Clean up if needed:
+数据检查结果：
 
-```powershell
-kubectl delete podchaos --all -n online-boutique --ignore-not-found
-kubectl delete stresschaos --all -n online-boutique --ignore-not-found
-kubectl delete networkchaos --all -n online-boutique --ignore-not-found
-```
+- `cpu__paymentservice` baseline 平均值约 `0.00064`。
+- `cpu__paymentservice` fault-window 平均值约 `0.16999`。
+- `cpu__paymentservice` fault-window 最大值约 `0.20016`。
+- `alarm_frontend_probe_success` 保持为 `1.0`。
+- `running__paymentservice` 保持为 `1.0`。
 
-### 4. Export Fault Data
+该组数据中的 CPU 异常清晰，最适合展示 KPIRoot 将系统级 CPU 告警定位到 `paymentservice` CPU 根因的过程。
 
-Keep Prometheus port-forward running:
+### `pod-kill-paymentservice-001`
 
-```powershell
-kubectl port-forward -n monitoring service/prometheus 9090:9090
-```
-
-Then export:
-
-```powershell
-.\FinalProject\.conda\python.exe .\FinalProject\scripts\export-prometheus-range.py `
-  --prometheus-url http://127.0.0.1:9090 `
-  --start "YYYY-MM-DDTHH:mm:ss+08:00" `
-  --end "YYYY-MM-DDTHH:mm:ss+08:00" `
-  --step 15 `
-  --output .\FinalProject\data\phase2\stress-paymentservice-cpu-001
-```
-
-Fill:
-
-```text
-FinalProject/data/phase2/metadata-template.yaml
-```
-
-and save it as:
-
-```text
-FinalProject/data/phase2/<scenario_id>/metadata.yaml
-```
-
-### 5. Prepare for KPIRoot
-
-For each fault dataset, the key file for Phase 4 is:
-
-```text
-processed/kpi_matrix.csv
-```
-
-The likely alarm KPIs are:
-
-- `alarm_frontend_probe_duration`
-- `alarm_frontend_probe_success`
-
-The expected root-cause KPI should match the injected service, for example:
-
-```text
-cpu__paymentservice
-```
-
-for `stress-paymentservice-cpu.yaml`.
-
-## Completed Fault Dataset: pod-kill-paymentservice-001
-
-Status: completed and validated.
-
-The second fault experiment used:
+故障清单：
 
 ```powershell
 kubectl apply -f .\FinalProject\chaos\pod-kill-paymentservice.yaml
 ```
 
-Observed timeline:
+关键时间：
 
-- Baseline start: `2026-06-05T02:45:55.5019669+08:00`
-- Fault apply time: `2026-06-05T02:51:15.6821586+08:00`
-- Chaos creation time: `2026-06-05T02:51:17+08:00`
-- Fault confirmed time: `2026-06-05T02:51:25.1436113+08:00`
-- Recovery and cleanup confirmed: `2026-06-05T02:59:47.6511894+08:00`
-- Export window: `2026-06-05T02:45:55+08:00` to `2026-06-05T03:02:30+08:00`
+- Baseline 开始：`2026-06-05T02:45:55.5019669+08:00`
+- 故障应用时间：`2026-06-05T02:51:15.6821586+08:00`
+- ChaosMesh 创建时间：`2026-06-05T02:51:17+08:00`
+- 故障确认时间：`2026-06-05T02:51:25.1436113+08:00`
+- 恢复与清理确认：`2026-06-05T02:59:47.6511894+08:00`
 
-Validation result:
+验证结果：
 
-- `paymentservice-85698c8c59-sss44` was replaced by `paymentservice-85698c8c59-5sx8h`.
-- All Online-Boutique Pods returned to `Running`.
-- No ChaosMesh objects remained in the `online-boutique` namespace after cleanup.
-- `alarm_frontend_probe_success` remained `1` throughout the export window.
-- `processed/kpi_matrix.csv` contains 67 rows and 62 columns.
+- 原 `paymentservice-85698c8c59-sss44` Pod 被替换为 `paymentservice-85698c8c59-5sx8h`。
+- Online-Boutique 所有 Pod 恢复到 `Running`。
+- 清理后 `online-boutique` 命名空间中无残留 ChaosMesh 对象。
+- `alarm_frontend_probe_success` 在导出窗口内保持为 `1`。
 
-Note: this fault is expected to look less dramatic than CPU stress on the overall Grafana dashboard. PodKill creates a replacement Pod, so the container restart counter can remain `0`; the strongest evidence is the old paymentservice Pod series ending and the replacement paymentservice Pod series appearing.
+该组故障在整体 Grafana 面板中的变化不如 CPU Stress 明显，因为 Kubernetes 会快速拉起替代 Pod，且处理后的服务级矩阵会弱化单个 Pod 身份变化。该数据集保留为阶段四的边界案例。
 
-## Completed Fault Dataset: stress-frontend-cpu-001
+### `stress-frontend-cpu-001`
 
-Status: completed and validated.
-
-The third fault experiment used:
+故障清单：
 
 ```powershell
 kubectl apply -f .\FinalProject\chaos\stress-frontend-cpu.yaml
 ```
 
-Observed timeline:
+关键时间：
 
-- Baseline start: `2026-06-05T03:14:44.9566104+08:00`
-- Fault apply time: `2026-06-05T03:20:10.5531737+08:00`
-- Chaos creation time: `2026-06-05T03:20:10+08:00`
-- Fault confirmed time: `2026-06-05T03:20:10.8167056+08:00`
-- Estimated fault end: `2026-06-05T03:25:10+08:00`
-- Recovery and cleanup confirmed: `2026-06-05T03:31:06.2251035+08:00`
-- Export window: `2026-06-05T03:14:44+08:00` to `2026-06-05T03:31:30+08:00`
+- Baseline 开始：`2026-06-05T03:14:44.9566104+08:00`
+- 故障应用时间：`2026-06-05T03:20:10.5531737+08:00`
+- ChaosMesh 创建时间：`2026-06-05T03:20:10+08:00`
+- 故障确认时间：`2026-06-05T03:20:10.8167056+08:00`
+- 预计故障结束：`2026-06-05T03:25:10+08:00`
+- 恢复与清理确认：`2026-06-05T03:31:06.2251035+08:00`
 
-Validation result:
+数据检查结果：
 
-- `cpu__frontend` baseline average: about `0.016`.
-- `cpu__frontend` fault-window average: about `0.170`.
-- `cpu__frontend` fault-window max: about `0.200`.
-- `alarm_frontend_probe_duration` increased during the fault, with max about `0.225s`.
-- `alarm_frontend_probe_success` remained `1`.
-- `running__frontend` remained `1`.
-- No ChaosMesh objects remained in the `online-boutique` namespace after cleanup.
-- `processed/kpi_matrix.csv` contains 68 rows and 60 columns.
+- `cpu__frontend` baseline 平均值约 `0.016`。
+- `cpu__frontend` fault-window 平均值约 `0.170`。
+- `cpu__frontend` fault-window 最大值约 `0.200`。
+- `alarm_frontend_probe_duration` 在故障窗口内升高，最大值约 `0.225s`。
+- `alarm_frontend_probe_success` 保持为 `1`。
+- `running__frontend` 保持为 `1`。
+
+该组数据能直接体现前端 CPU 压力对服务质量指标的影响，是阶段四中另一组主要复现案例。
+
+## 阶段结论
+
+阶段二完成了监控、可视化、故障注入和数据导出的闭环。三组故障数据均包含原始 Prometheus 响应、处理后的 KPI 矩阵、元数据和截图证据，可直接支撑阶段四 KPIRoot 的算法复现与结果分析。

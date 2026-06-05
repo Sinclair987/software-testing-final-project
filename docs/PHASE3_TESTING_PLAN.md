@@ -1,92 +1,90 @@
-# Phase 3: Selenium and JMeter Testing Plan
+# 阶段三：Selenium 与 JMeter 测试设计
 
-This phase performs black-box functional and performance testing for the
-Online-Boutique microservice system.
+本阶段围绕 Online-Boutique 前端完成黑盒功能测试和性能测试。测试目标是验证主要用户流程是否可用，并记录页面加载时间、交互响应时间和负载测试结果。
 
-## Environment
+## 测试环境
 
-- Target frontend URL: `http://127.0.0.1:8088`
-- Selenium test runner: Python Selenium with pytest
-- Browser: Microsoft Edge by default
-- JMeter: Apache JMeter 5.1.1
-- Java: JDK 1.8
+| 项目 | 内容 |
+| --- | --- |
+| 被测地址 | `http://127.0.0.1:8088` |
+| 功能测试工具 | Python Selenium + pytest |
+| 浏览器 | Microsoft Edge |
+| 性能测试工具 | Apache JMeter 5.1.1 |
+| Java 环境 | JDK 1.8 |
 
-## Selenium Functional Tests
+阶段三开始前，Online-Boutique 前端已通过阶段一端口转发暴露到本地 `8088` 端口。
 
-The Selenium tests are stored in:
+## Selenium 功能测试设计
+
+Selenium 测试文件：
 
 ```text
-FinalProject/tests/selenium/
+tests/selenium/online_boutique_smoke_test.py
+tests/selenium/online_boutique_smoke.side
 ```
 
-Test cases:
+功能测试覆盖四个用户场景：
 
-1. Home page loads and lists product links.
-2. Product detail page for `OLJCESPC7Z` renders `Sunglasses`.
-3. User can add `Sunglasses` to cart with quantity `2`.
-4. User can checkout and see order completion information.
+| 用例 | 验证内容 |
+| --- | --- |
+| 首页加载 | 首页可打开，并能展示商品链接 |
+| 商品详情 | `OLJCESPC7Z` 商品详情页正常渲染，页面中出现 `Sunglasses` |
+| 加入购物车 | 用户可以将 `Sunglasses` 以数量 `2` 加入购物车 |
+| 结算流程 | 用户可以填写结算信息并看到订单完成页面 |
 
-Run:
+测试脚本同时记录两类时间指标：
+
+- 页面加载时间：基于浏览器 Navigation Timing。
+- 交互响应时间：从点击操作开始，到预期页面状态出现为止。
+
+执行脚本：
 
 ```powershell
 .\FinalProject\scripts\run-phase3-selenium.ps1
 ```
 
-Screenshots are saved in:
+输出目录：
 
 ```text
-FinalProject/data/phase3/selenium/screenshots/
+data/phase3/selenium/
 ```
 
-Page-load and interaction-response timing metrics are saved in:
+## JMeter 性能测试设计
+
+JMeter 测试计划：
 
 ```text
-FinalProject/data/phase3/selenium/timing_metrics.csv
+tests/jmeter/online_boutique_load_test.jmx
 ```
 
-## JMeter Performance Tests
+测试计划模拟一个完整购物流程：
 
-The JMeter test plan is stored in:
+1. 打开首页。
+2. 打开商品详情页。
+3. 加入购物车。
+4. 查看购物车。
+5. 提交结算。
 
-```text
-FinalProject/tests/jmeter/online_boutique_load_test.jmx
-```
+实际执行了三组负载：
 
-The test plan simulates the shopping flow:
+| Run Name | 线程数 | Ramp-up | Loops | 目的 |
+| --- | ---: | ---: | ---: | --- |
+| `smoke-001` | 1 | 默认 | 1 | 验证 JMeter 脚本可运行 |
+| `normal-001` | 10 | 20s | 5 | 模拟普通负载 |
+| `higher-001` | 20 | 30s | 5 | 模拟较高负载 |
 
-1. Open home page.
-2. Open product detail page.
-3. Add product to cart.
-4. View cart.
-5. Checkout.
-
-Recommended runs:
+执行脚本：
 
 ```powershell
-.\FinalProject\scripts\run-phase3-jmeter.ps1 -Threads 1 -Loops 1 -RunName smoke-001
-.\FinalProject\scripts\run-phase3-jmeter.ps1 -Threads 10 -RampUp 20 -Loops 5 -RunName normal-001
-.\FinalProject\scripts\run-phase3-jmeter.ps1 -Threads 20 -RampUp 30 -Loops 5 -RunName higher-001
+.\FinalProject\scripts\run-phase3-jmeter.ps1
 ```
 
-Outputs are saved in:
+输出目录：
 
 ```text
-FinalProject/data/phase3/jmeter/<run-name>/
+data/phase3/jmeter/
 ```
 
-## Report Evidence
+## 与阶段四的关系
 
-Keep only essential screenshots:
-
-- Selenium pytest pass result.
-- Selenium order complete page.
-- Selenium timing metrics CSV.
-- JMeter Aggregate Report or HTML Dashboard statistics.
-- Optional Grafana dashboard during JMeter load.
-
-## Relation To KPIRoot
-
-Phase 3 validates functional correctness and load performance. It is not the
-main source of KPIRoot fault data. KPIRoot should primarily use Phase 2 fault
-datasets, while Phase 3 load data can be used as supplementary normal/high-load
-context if needed.
+阶段三主要验证系统在正常和负载访问下的功能与性能，不作为 KPIRoot 的主要故障数据来源。阶段四使用阶段二的故障注入数据作为核心输入，阶段三数据可作为系统正常可用性和高负载访问能力的补充证据。
