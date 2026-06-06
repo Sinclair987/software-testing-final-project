@@ -22,7 +22,6 @@ from reportlab.platypus import (
     LongTable,
     PageBreak,
     Paragraph,
-    Preformatted,
     SimpleDocTemplate,
     Spacer,
     Table,
@@ -229,8 +228,8 @@ def bullet(text: str, styles: dict[str, ParagraphStyle]) -> Paragraph:
     return raw_p(f"• {esc(text)}", styles, "Bullet")
 
 
-def code(text: str, styles: dict[str, ParagraphStyle]) -> Preformatted:
-    return Preformatted(text, styles["Code"], maxLineLength=88)
+def code(text: str, styles: dict[str, ParagraphStyle]) -> Paragraph:
+    return raw_p("<br/>".join(esc(line) for line in text.splitlines()), styles, "Code")
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:
@@ -338,7 +337,8 @@ def cover_table(styles: dict[str, ParagraphStyle]) -> Table:
     for key, value in rows:
         value_text = esc(value)
         if key == "GitHub：":
-            value_text = "https://github.com/Sinclair987/<br/>software-testing-final-project"
+            url = "https://github.com/Sinclair987/software-testing-final-project"
+            value_text = f'<link href="{url}">https://github.com/Sinclair987/<br/>software-testing-final-project</link>'
         data.append(
             [
                 Paragraph(f"<b>{esc(key)}</b>", styles["CoverInfo"]),
