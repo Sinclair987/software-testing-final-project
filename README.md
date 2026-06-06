@@ -26,6 +26,7 @@ ISSRE 2024 - KPIRoot: Efficient Monitoring Metric-based Root Cause Localization 
 chaos/       ChaosMesh 故障注入配置
 data/        实验采集数据、测试数据与 KPIRoot 输出结果
 docs/        各阶段执行记录与说明文档
+reports/     最终实验报告 PDF
 grafana/     Grafana Dashboard 配置
 monitoring/  Blackbox Exporter 等监控配置
 scripts/     部署、恢复、数据导出、测试与算法运行脚本
@@ -97,8 +98,25 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\run-phase4-kpi
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\resume-online-boutique.ps1
 ```
 
+## 大作业报告
+
+最终实验报告已整理为 PDF：
+
+```text
+reports/final_report/2311901_王新杰_2312385_王子祺_软件测试与维护大作业报告.pdf
+```
+
+报告按照课程最终提交形式编写，包含 Online-Boutique 微服务系统部署、Prometheus/Grafana 监控与故障数据采集、Selenium/JMeter 测试、ISSRE24-KPIRoot 论文方法复现、实验结果、消融实验、局限分析和参与者贡献说明。报告首页已注明：本仓库记录的是组内两篇论文复现任务中的一篇，即 ISSRE24-KPIRoot。
+
+如需重新生成报告，可运行：
+
+```powershell
+.\.conda\python.exe .\scripts\generate-final-report.py
+```
+
 ## 文档索引
 
+- [大作业报告（PDF）](reports/final_report/2311901_王新杰_2312385_王子祺_软件测试与维护大作业报告.pdf)
 - [阶段一部署记录](docs/PHASE1_DEPLOYMENT.md)
 - [阶段二监控与数据采集说明](docs/PHASE2_MONITORING_AND_DATA_COLLECTION.md)
 - [阶段二执行记录](docs/PHASE2_EXECUTION_LOG.md)
