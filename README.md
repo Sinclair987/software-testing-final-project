@@ -26,6 +26,7 @@ ISSRE 2024 - KPIRoot: Efficient Monitoring Metric-based Root Cause Localization 
 chaos/       ChaosMesh 故障注入配置
 data/        实验采集数据、测试数据与 KPIRoot 输出结果
 docs/        各阶段执行记录与说明文档
+papers/      本仓库复现论文原文
 reports/     最终实验报告 PDF
 grafana/     Grafana Dashboard 配置
 monitoring/  Blackbox Exporter 等监控配置
@@ -35,6 +36,8 @@ tests/       Selenium、JMeter 与 KPIRoot 测试文件
 ```
 
 ## 阶段四：ISSRE24-KPIRoot 复现
+
+论文原文见：[ISSRE24-KPIRoot](papers/ISSRE24-KPIRoot.pdf)。
 
 KPIRoot 的任务是：当系统级 KPI 出现异常后，根据多个候选服务 KPI 的变化趋势，定位最可能导致异常的根因 KPI。
 
@@ -100,23 +103,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\resume-online-
 
 ## 大作业报告
 
-最终实验报告已整理为 PDF：
+最终实验报告见：[大作业报告（PDF）](reports/final_report/2311901_王新杰_2312385_王子祺_软件测试与维护大作业报告.pdf)。
 
-```text
-reports/final_report/2311901_王新杰_2312385_王子祺_软件测试与维护大作业报告.pdf
-```
-
-报告按照课程最终提交形式编写，包含 Online-Boutique 微服务系统部署、Prometheus/Grafana 监控与故障数据采集、Selenium/JMeter 测试、ISSRE24-KPIRoot 论文方法复现、实验结果、消融实验、局限分析和参与者贡献说明。报告首页已注明：本仓库记录的是组内两篇论文复现任务中的一篇，即 ISSRE24-KPIRoot。
-
-如需重新生成报告，可运行：
-
-```powershell
-.\.conda\python.exe .\scripts\generate-final-report.py
-```
+报告内容覆盖 Online-Boutique 微服务系统部署、Prometheus/Grafana 监控与故障数据采集、Selenium/JMeter 测试、ISSRE24-KPIRoot 论文方法复现、实验结果、消融实验、局限分析和参与者贡献说明。
 
 ## 文档索引
 
 - [大作业报告（PDF）](reports/final_report/2311901_王新杰_2312385_王子祺_软件测试与维护大作业报告.pdf)
+- [复现论文：ISSRE24-KPIRoot](papers/ISSRE24-KPIRoot.pdf)
 - [阶段一部署记录](docs/PHASE1_DEPLOYMENT.md)
 - [阶段二监控与数据采集说明](docs/PHASE2_MONITORING_AND_DATA_COLLECTION.md)
 - [阶段二执行记录](docs/PHASE2_EXECUTION_LOG.md)
