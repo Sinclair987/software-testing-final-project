@@ -12,3 +12,6 @@ pytest
 pytest-cov
 jupyter
 selenium
+reportlab
+pdfplumber
+pymupdf
